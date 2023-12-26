@@ -23,6 +23,11 @@ import utils
 from torch.utils.data import Dataset
 from transformers import Trainer
 
+import bitsandbytes as bnb
+from torch import nn
+from transformers.trainer_pt_utils import get_parameter_names
+
+
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 DEFAULT_EOS_TOKEN = "</s>"
@@ -187,6 +192,26 @@ def train():
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
     )
+    # 8-bit adam
+    decay_parameters = get_parameter_names(model, [nn.LayerNorm])
+    decay_parameters = [name for name in decay_parameters if "bias" not in name]
+    optimizer_grouped_parameters = [
+        {
+            "params": [p for n, p in model.named_parameters() if n in decay_parameters],
+            "weight_decay": training_args.weight_decay,
+        },
+        {
+            "params": [p for n, p in model.named_parameters() if n not in decay_parameters],
+            "weight_decay": 0.0,
+        },
+    ]
+
+    adam_bnb_optim = bnb.optim.Adam8bit(
+        optimizer_grouped_parameters,
+        betas=(training_args.adam_beta1, training_args.adam_beta2),
+        eps=training_args.adam_epsilon,
+        lr=training_args.learning_rate,
+    )
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
@@ -212,7 +237,7 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, optimizers=(adam_bnb_optim, None), **data_module)
     trainer.train()
     trainer.save_state()
     trainer.save_model(output_dir=training_args.output_dir)
