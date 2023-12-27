@@ -21,8 +21,15 @@ import torch
 import transformers
 import utils
 from torch.utils.data import Dataset
-from transformers import Trainer
-from peft import LoraConfig, TaskType, get_peft_model
+from transformers import Trainer, get_linear_schedule_with_warmup
+from peft import (
+    LoraConfig,
+    TaskType,
+    get_peft_model,
+    get_peft_model_state_dict,
+    prepare_model_for_int8_training,
+    set_peft_model_state_dict,
+)
 
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -191,6 +198,7 @@ def train():
     peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=16, lora_dropout=0.05, target_modules=["q_proj", "v_proj"], bias="none")
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=training_args.learning_rate)
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
@@ -215,7 +223,12 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    lr_scheduler = get_linear_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=0,
+        num_training_steps=4500,
+    )
+    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, optimizers=(optimizer, lr_scheduler), **data_module)
     trainer.train()
     trainer.save_state()
     trainer.save_model(output_dir=training_args.output_dir)

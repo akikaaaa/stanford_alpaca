@@ -1,4 +1,4 @@
-accelerate launch train.py \
+NCCL_P2P_DISABLE="1" NCCL_IB_DISABLE="1" torchrun --nproc_per_node=4 --master_port=34322 train.py \
 --model_name_or_path yahma/llama-7b-hf \
 --data_path ./alpaca_data.json \
 --bf16 True \
