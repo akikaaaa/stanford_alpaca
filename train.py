@@ -223,12 +223,8 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-    lr_scheduler = get_linear_schedule_with_warmup(
-        optimizer=optimizer,
-        num_warmup_steps=0,
-        num_training_steps=4500,
-    )
-    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, optimizers=(optimizer, lr_scheduler), **data_module)
+    trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
+    trainer.optimizer = optimizer
     trainer.train()
     trainer.save_state()
     trainer.save_model(output_dir=training_args.output_dir)
