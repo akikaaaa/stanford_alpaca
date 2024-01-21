@@ -186,6 +186,7 @@ def train():
     model = transformers.AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
+        token="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"
     )
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(
@@ -194,6 +195,7 @@ def train():
         model_max_length=training_args.model_max_length,
         padding_side="right",
         use_fast=False,
+        token="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"
     )
     special_tokens_dict = dict()
     if tokenizer.pad_token is None:
